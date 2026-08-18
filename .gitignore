@@ -1,0 +1,9 @@
+.DS_Store
+build/
+dist/
+output/
+outputs/
+qa/
+tmp/
+work/
+/*.png

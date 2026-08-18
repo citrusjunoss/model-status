@@ -1,0 +1,51 @@
+name: Build macOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 2.2.5"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build both architectures
+        env:
+          MODEL_STATUS_SIGN_IDENTITY: "-"
+        run: |
+          chmod +x scripts/build-app.sh
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Resources/Info.plist
+          scripts/build-app.sh all
+          mkdir -p release
+          ditto -c -k --keepParent dist/模型状态-intel.app "release/模型状态-${{ steps.version.outputs.version }}-intel.zip"
+          ditto -c -k --keepParent dist/模型状态-arm64.app "release/模型状态-${{ steps.version.outputs.version }}-arm64.zip"
+          shasum -a 256 release/*.zip > release/SHA256SUMS
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: 模型状态 ${{ steps.version.outputs.version }}
+          files: release/*
+          generate_release_notes: true
