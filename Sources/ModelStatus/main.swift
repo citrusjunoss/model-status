@@ -4,7 +4,7 @@ import CryptoKit
 import Security
 
 private enum AppConfig {
-    static let appName = "模型状态"
+    static let appName = "InputStatus"
     static let legacyWindowFrameKey = "ModelStatusDesktopWidget"
     static let orbFrameKey = "orbFrame.v1"
     static let detailFrameKey = "detailFrame.v1"
@@ -1027,7 +1027,7 @@ private final class OrbWidgetView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         setAccessibilityRole(.button)
-        setAccessibilityLabel("模型状态悬浮球")
+        setAccessibilityLabel("InputStatus 悬浮球")
         toolTip = "单击展开，拖动移动"
     }
 
@@ -2144,9 +2144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func installPreparedUpdate(_ updateAppURL: URL, fallbackDownloadURL: URL) {
         let currentAppURL = Bundle.main.bundleURL
         let parent = currentAppURL.deletingLastPathComponent()
+        let targetAppURL = parent.appendingPathComponent("\(AppConfig.appName).app", isDirectory: true)
         guard currentAppURL.pathExtension == "app",
               !currentAppURL.path.contains("/AppTranslocation/"),
-              FileManager.default.isWritableFile(atPath: parent.path) else {
+              FileManager.default.isWritableFile(atPath: parent.path),
+              currentAppURL == targetAppURL || !FileManager.default.fileExists(atPath: targetAppURL.path) else {
             NSWorkspace.shared.open(fallbackDownloadURL)
             showAlert(title: "需要手动安装", message: "当前应用位置无法直接替换，已打开下载地址。请退出应用后手动覆盖旧版本。")
             return
@@ -2154,18 +2156,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let installerScript = """
         set -eu
-        target="$1"
-        source="$2"
-        pid="$3"
+        current="$1"
+        target="$2"
+        source="$3"
+        pid="$4"
         while /bin/kill -0 "$pid" 2>/dev/null; do /bin/sleep 0.2; done
-        backup="${target}.update-backup"
+        backup="${current}.update-backup"
         /bin/rm -rf "$backup"
-        /bin/mv "$target" "$backup"
+        /bin/mv "$current" "$backup"
         if /bin/mv "$source" "$target"; then
           /bin/rm -rf "$backup"
           /usr/bin/open "$target"
         else
-          /bin/mv "$backup" "$target"
+          /bin/mv "$backup" "$current"
           exit 1
         fi
         """
@@ -2173,7 +2176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         installer.executableURL = URL(fileURLWithPath: "/bin/zsh")
         installer.arguments = [
             "-c", installerScript, "model-status-updater",
-            currentAppURL.path, updateAppURL.path,
+            currentAppURL.path, targetAppURL.path, updateAppURL.path,
             String(ProcessInfo.processInfo.processIdentifier)
         ]
         installer.standardOutput = FileHandle.nullDevice

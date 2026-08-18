@@ -1,4 +1,4 @@
-# 模型状态
+# InputStatus
 
 一个轻量的 macOS 原生模型状态应用，不打包 Chromium、WebKit 页面或第三方运行时。支持 Intel 与 Apple Silicon Mac，并始终保持单实例。
 
@@ -11,7 +11,7 @@
 - 悬浮球模式只探测 GPT-5.6 Sol；展开时立即补测 Terra、Lunna 和 GPT-5.5，详细模式后续刷新四个模型。
 - 直接请求 `https://ai.input.im/v1/responses`，显示颜色状态点与实际延迟。
 - 当前正常时显示上次异常持续时间；当前失败时显示上次正常持续时间，采用 `8m`、`1h20m` 等短格式。
-- 菜单栏始终只显示 GPT-5.6 Sol 延时；菜单中可打开“关于模型状态”查看版本和构建号。
+- 菜单栏始终只显示 GPT-5.6 Sol 延时；菜单中可打开“关于”查看版本、构建号和源码地址。
 - 在线延时低于 2 秒显示绿色，2 秒及以上显示黄色，只有请求失败显示红色。
 - 通过 `https://ai.input.im/v1/usage` 分段显示当前 Key 今日用量、其他今日用量和今日剩余额度。
 - API Key 仅保存在 macOS 钥匙串，不写入源码、设置文件或应用包；启动后仅读取一次并在本次运行内缓存。
@@ -27,7 +27,7 @@
 
 打开应用后配置 AI INPUT API Key。2.1.2 及以后版本使用新的钥匙串项目，需要重新配置一次 Key；旧项目不会读取或删除。应用默认以悬浮球启动，单击可展开详细面板；会立即查询当日额度并按当前模式检测模型，后续无需配置网页链接或 token。
 
-状态菜单中的“关于模型状态”使用标准 macOS 关于窗口展示当前版本号和构建号。
+状态菜单中的“关于”使用标准 macOS 关于窗口展示当前版本号、构建号和 GitHub 源码地址。
 
 ## 构建
 
@@ -57,6 +57,8 @@ chmod +x scripts/package.sh
 ./scripts/package.sh --version 2.3.0
 ```
 
-默认命令会分别构建 `dist/模型状态-intel.app` 和 `dist/模型状态-arm64.app`，不再生成通用包。默认使用一次性配置的 `ModelStatus Local Signing` 本地证书，不使用 Developer ID，也不会在每次打包时要求管理员密码；可通过 `MODEL_STATUS_SIGN_IDENTITY` 指定其他身份。GitHub Actions 使用 `MODEL_STATUS_SIGN_IDENTITY=-` 做临时 ad-hoc 签名，不保存任何私钥。跨 Mac 首次打开本地签名或 ad-hoc 包时，需要用户在 macOS 安全设置或 Finder “打开”中明确允许；正式分发仍需 Developer ID 与 Apple 公证。
+默认命令会分别构建 `dist/InputStatus-intel.app` 和 `dist/InputStatus-arm64.app`，不再生成通用包。默认使用一次性配置的 `InputStatus Local Signing` 本地证书；为兼容已有环境，找不到新证书时会继续使用旧的 `ModelStatus Local Signing`。脚本不使用 Developer ID，也不会在每次打包时要求管理员密码；可通过 `MODEL_STATUS_SIGN_IDENTITY` 指定其他身份。GitHub Actions 使用 `MODEL_STATUS_SIGN_IDENTITY=-` 做临时 ad-hoc 签名，不保存任何私钥。跨 Mac 首次打开本地签名或 ad-hoc 包时，需要用户在 macOS 安全设置或 Finder “打开”中明确允许；正式分发仍需 Developer ID 与 Apple 公证。
 
 GitHub 自动构建发布模板位于 `.github/workflows/release.yml`，推送 `v2.3.0` 形式的标签或手工运行工作流即可生成两个架构的 Release 包。更新器、失败指数退避以及睡眠/唤醒监听的实现说明见 `docs/IMPLEMENTATION_PLAN.md`。
+
+应用内免登录自动更新要求 GitHub 仓库为 Public；私有仓库的 Release API 需要额外授权，应用不会内置 GitHub Token。

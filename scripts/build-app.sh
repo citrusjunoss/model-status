@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="${0:A:h:h}"
 BUILD_DIR="$ROOT_DIR/build"
-SIGNING_IDENTITY="${MODEL_STATUS_SIGN_IDENTITY:-ModelStatus Local Signing}"
+SIGNING_IDENTITY="${MODEL_STATUS_SIGN_IDENTITY:-InputStatus Local Signing}"
+USING_DEFAULT_SIGNING_IDENTITY=$([[ -z "${MODEL_STATUS_SIGN_IDENTITY:-}" ]] && print 1 || print 0)
 DEFAULT_KEYCHAIN="$(security default-keychain -d user | sed -E 's/^[[:space:]]*\"//; s/\"[[:space:]]*$//')"
 SIGNING_KEYCHAIN="${MODEL_STATUS_SIGNING_KEYCHAIN:-$DEFAULT_KEYCHAIN}"
 BUILD_MODE="${1:-all}"
@@ -41,6 +42,15 @@ else
         IDENTITY_LINE="$(print -r -- "$IDENTITY_LIST" | /usr/bin/grep -F "\"$SIGNING_IDENTITY\"" | /usr/bin/head -n 1 || true)"
     fi
     if [[ -z "$IDENTITY_LINE" ]]; then
+        if (( USING_DEFAULT_SIGNING_IDENTITY )); then
+            LEGACY_IDENTITY_LINE="$(print -r -- "$IDENTITY_LIST" | /usr/bin/grep -F '"ModelStatus Local Signing"' | /usr/bin/head -n 1 || true)"
+            if [[ -n "$LEGACY_IDENTITY_LINE" ]]; then
+                SIGNING_IDENTITY="ModelStatus Local Signing"
+                IDENTITY_LINE="$LEGACY_IDENTITY_LINE"
+            fi
+        fi
+    fi
+    if [[ -z "$IDENTITY_LINE" ]]; then
         print -u2 "未找到有效签名证书：$SIGNING_IDENTITY"
         print -u2 "请先运行：$ROOT_DIR/scripts/setup-signing.sh，或使用 MODEL_STATUS_SIGN_IDENTITY=- 进行临时 ad-hoc 签名。"
         exit 2
@@ -60,10 +70,10 @@ swift "$ROOT_DIR/Tools/generate-icon.swift" "$ICONSET_DIR"
 for TARGET in "${TARGETS[@]}"; do
     if [[ "$TARGET" == "intel" ]]; then
         ARCH="x86_64"
-        APP_DIR="$ROOT_DIR/dist/模型状态-intel.app"
+        APP_DIR="$ROOT_DIR/dist/InputStatus-intel.app"
     else
         ARCH="arm64"
-        APP_DIR="$ROOT_DIR/dist/模型状态-arm64.app"
+        APP_DIR="$ROOT_DIR/dist/InputStatus-arm64.app"
     fi
     CONTENTS_DIR="$APP_DIR/Contents"
     MACOS_DIR="$CONTENTS_DIR/MacOS"

@@ -39,13 +39,13 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Resources/Info.plist
           scripts/build-app.sh all
           mkdir -p release
-          ditto -c -k --keepParent dist/模型状态-intel.app "release/模型状态-${{ steps.version.outputs.version }}-intel.zip"
-          ditto -c -k --keepParent dist/模型状态-arm64.app "release/模型状态-${{ steps.version.outputs.version }}-arm64.zip"
+          ditto -c -k --keepParent dist/InputStatus-intel.app "release/InputStatus-${{ steps.version.outputs.version }}-intel.zip"
+          ditto -c -k --keepParent dist/InputStatus-arm64.app "release/InputStatus-${{ steps.version.outputs.version }}-arm64.zip"
           shasum -a 256 release/*.zip > release/SHA256SUMS
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: 模型状态 ${{ steps.version.outputs.version }}
+          name: InputStatus ${{ steps.version.outputs.version }}
           files: release/*
           generate_release_notes: true

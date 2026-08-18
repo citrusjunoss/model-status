@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-IDENTITY_NAME="${MODEL_STATUS_SIGN_IDENTITY:-ModelStatus Local Signing}"
+IDENTITY_NAME="${MODEL_STATUS_SIGN_IDENTITY:-InputStatus Local Signing}"
 DEFAULT_KEYCHAIN="$(security default-keychain -d user | sed -E 's/^[[:space:]]*\"//; s/\"[[:space:]]*$//')"
 KEYCHAIN_PATH="${MODEL_STATUS_SIGNING_KEYCHAIN:-$DEFAULT_KEYCHAIN}"
 OPENSSL_BIN="$(command -v openssl)"
@@ -16,7 +16,7 @@ if ! "$OPENSSL_BIN" req -help 2>&1 | /usr/bin/grep -q -- "-addext"; then
     exit 2
 fi
 
-TASK_TEMP_DIR="$(mktemp -d /private/tmp/model-status-signing.XXXXXX)"
+TASK_TEMP_DIR="$(mktemp -d /private/tmp/input-status-signing.XXXXXX)"
 trap 'rm -rf "$TASK_TEMP_DIR"' EXIT
 
 PRIVATE_KEY="$TASK_TEMP_DIR/private-key.pem"
@@ -31,7 +31,7 @@ ARCHIVE_PASSWORD="$($OPENSSL_BIN rand -hex 24)"
     -sha256 \
     -days 3650 \
     -nodes \
-    -subj "/CN=$IDENTITY_NAME/O=ModelStatus" \
+    -subj "/CN=$IDENTITY_NAME/O=InputStatus" \
     -addext "basicConstraints=critical,CA:false" \
     -addext "keyUsage=critical,digitalSignature" \
     -addext "extendedKeyUsage=critical,codeSigning" \

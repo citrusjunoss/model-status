@@ -91,11 +91,11 @@ print "版本已更新：$CURRENT_VERSION ($CURRENT_BUILD) -> $VERSION ($NEXT_BU
 "$BUILD_SCRIPT" all
 
 for arch in intel arm64; do
-    app="$DIST_DIR/模型状态-$arch.app"
-    zip="$DIST_DIR/模型状态-$VERSION-$arch.zip"
+    app="$DIST_DIR/InputStatus-$arch.app"
+    zip="$DIST_DIR/InputStatus-$VERSION-$arch.zip"
     rm -f "$zip"
     ditto -c -k --keepParent "$app" "$zip"
     shasum -a 256 "$zip"
 done
-print "打包完成：$DIST_DIR/模型状态-$VERSION-intel.zip"
-print "打包完成：$DIST_DIR/模型状态-$VERSION-arm64.zip"
+print "打包完成：$DIST_DIR/InputStatus-$VERSION-intel.zip"
+print "打包完成：$DIST_DIR/InputStatus-$VERSION-arm64.zip"
