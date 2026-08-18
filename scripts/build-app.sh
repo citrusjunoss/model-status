@@ -25,7 +25,13 @@ case "$BUILD_MODE" in
 esac
 ICONSET_DIR="$BUILD_DIR/AppIcon.iconset"
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
-MODULE_CACHE_DIR="$BUILD_DIR/module-cache"
+MODULE_CACHE_DIR="$(mktemp -d "${TMPDIR:-/tmp/}input-status-module-cache.XXXXXX")"
+trap 'rm -rf "$MODULE_CACHE_DIR"' EXIT
+SOURCE_FILES=("$ROOT_DIR"/Sources/ModelStatus/**/*.swift(N))
+if (( ${#SOURCE_FILES[@]} == 0 )); then
+    print -u2 "未找到 Swift 源文件：$ROOT_DIR/Sources/ModelStatus"
+    exit 2
+fi
 
 IDENTITY_LIST=""
 IDENTITY_LINE=""
@@ -61,7 +67,7 @@ else
     fi
 fi
 
-mkdir -p "$BUILD_DIR" "$MODULE_CACHE_DIR"
+mkdir -p "$BUILD_DIR"
 
 CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR" \
 SWIFT_MODULECACHE_PATH="$MODULE_CACHE_DIR" \
@@ -90,7 +96,7 @@ for TARGET in "${TARGETS[@]}"; do
         -sdk "$SDK_PATH" \
         -module-cache-path "$MODULE_CACHE_DIR" \
         -framework AppKit \
-        "$ROOT_DIR/Sources/ModelStatus/main.swift" \
+        "${SOURCE_FILES[@]}" \
         -o "$BUILD_DIR/ModelStatus-$ARCH"
     cp "$BUILD_DIR/ModelStatus-$ARCH" "$MACOS_DIR/ModelStatus"
     strip -x "$MACOS_DIR/ModelStatus"

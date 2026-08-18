@@ -100,3 +100,12 @@ chmod +x scripts/package.sh
 GitHub 自动构建发布模板位于 `.github/workflows/release.yml`，推送 `v2.3.0` 形式的标签或手工运行工作流即可生成两个架构的 Release 包。更新器、失败指数退避以及睡眠/唤醒监听的实现说明见 `docs/IMPLEMENTATION_PLAN.md`。
 
 应用内免登录自动更新要求 GitHub 仓库为 Public；私有仓库的 Release API 需要额外授权，应用不会内置 GitHub Token。
+
+## 源码结构
+
+- `Sources/ModelStatus/ApplicationMain.swift`：应用入口和单实例处理。
+- `Sources/ModelStatus/AppDelegate.swift`：窗口、菜单、状态和刷新流程协调。
+- `Sources/ModelStatus/Services/`：探针、额度、自动更新、自迁移和系统进程服务。
+- `Sources/ModelStatus/Views/`：详细面板、状态球及悬停信息视图。
+- `Sources/ModelStatus/Models.swift`：探针、额度和 GitHub Release 数据模型。
+- `Sources/ModelStatus/AppConfig.swift`：应用配置、状态颜色和公共常量。
