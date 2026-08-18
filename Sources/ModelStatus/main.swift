@@ -20,7 +20,7 @@ private enum AppConfig {
     static let defaultRefreshInterval: TimeInterval = 60
     static let allowedRefreshIntervals: [TimeInterval] = [60, 120, 300, 600, 900]
     static let probeTimeout: TimeInterval = 45
-    static let slowLatencyMilliseconds = 2_000
+    static let slowLatencyMilliseconds = 5_000
     static let stabilityWindow: TimeInterval = 60 * 60
     static let keychainService = "im.input.model-status.secure-v2"
     static let keychainAccount = "quota-api-key"
@@ -1013,6 +1013,9 @@ private final class OrbWidgetView: NSView {
     private var quota: QuotaSnapshot?
     private var wavePhase: CGFloat = 0
     private var waveTimer: Timer?
+    private var displayedLatencyProgress: CGFloat?
+    private var targetLatencyProgress: CGFloat?
+    private var latencyAnimationTimer: Timer?
     private var trackingArea: NSTrackingArea?
     private var mouseDownLocation = NSPoint.zero
     private var windowOriginAtMouseDown = NSPoint.zero
@@ -1035,6 +1038,7 @@ private final class OrbWidgetView: NSView {
 
     deinit {
         waveTimer?.invalidate()
+        latencyAnimationTimer?.invalidate()
     }
 
     override func viewDidMoveToWindow() {
@@ -1106,6 +1110,7 @@ private final class OrbWidgetView: NSView {
     }
 
     func update(presentations: [String: ProbePresentation], quota: QuotaSnapshot?) {
+        updateLatencyAnimation(for: presentations[ModelDefinition.orbModel.id])
         self.presentations = presentations
         self.quota = quota
         let percent = quota.map { Int(($0.remainingFraction * 100).rounded()) }
@@ -1113,6 +1118,52 @@ private final class OrbWidgetView: NSView {
         setAccessibilityValue("\(percent.map { "剩余额度 \($0)%" } ?? "剩余额度未知")，Sol \(status)")
         updateWaveTimer()
         needsDisplay = true
+    }
+
+    private func updateLatencyAnimation(for presentation: ProbePresentation?) {
+        guard presentation?.phase == .online,
+              let milliseconds = presentation?.latencyMilliseconds else {
+            latencyAnimationTimer?.invalidate()
+            latencyAnimationTimer = nil
+            displayedLatencyProgress = nil
+            targetLatencyProgress = nil
+            return
+        }
+
+        let target = latencySpeedProgress(milliseconds)
+        if let currentTarget = targetLatencyProgress, abs(target - currentTarget) <= 0.001 {
+            return
+        }
+
+        latencyAnimationTimer?.invalidate()
+        latencyAnimationTimer = nil
+        targetLatencyProgress = target
+        guard let start = displayedLatencyProgress,
+              abs(target - start) > 0.001,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            displayedLatencyProgress = target
+            return
+        }
+
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let duration: TimeInterval = 0.5
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+            let fraction = min(max(elapsed / duration, 0), 1)
+            let eased = 1 - pow(1 - fraction, 3)
+            displayedLatencyProgress = start + (target - start) * CGFloat(eased)
+            needsDisplay = true
+            if fraction >= 1 {
+                timer.invalidate()
+                latencyAnimationTimer = nil
+            }
+        }
+        latencyAnimationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func updateWaveTimer() {
@@ -1224,7 +1275,7 @@ private final class OrbWidgetView: NSView {
 
         switch phase {
         case .online:
-            let progress = latencySpeedProgress(latency ?? 0)
+            let progress = displayedLatencyProgress ?? latencySpeedProgress(latency ?? 0)
             let visibleProgress = max(progress, 0.025)
             let endDegrees = startDegrees - sweepDegrees * visibleProgress
             drawArc(context, center: center, radius: radius, startDegrees: startDegrees, endDegrees: endDegrees, width: trackWidth * 0.68, color: color, clockwise: true)
@@ -1269,19 +1320,9 @@ private final class OrbWidgetView: NSView {
     }
 
     private func latencySpeedProgress(_ milliseconds: Int) -> CGFloat {
-        let stops: [(milliseconds: CGFloat, progress: CGFloat)] = [
-            (0, 1.0),
-            (1_000, 0.9),
-            (20_000, 0.1)
-        ]
-        let value = max(CGFloat(milliseconds), 0)
-        for index in 0..<(stops.count - 1) where value <= stops[index + 1].milliseconds {
-            let start = stops[index]
-            let end = stops[index + 1]
-            let local = (value - start.milliseconds) / (end.milliseconds - start.milliseconds)
-            return start.progress + (end.progress - start.progress) * local
-        }
-        return stops.last?.progress ?? 0
+        let seconds = max(CGFloat(milliseconds), 0) / 1_000
+        guard seconds > 1 else { return 1 }
+        return max(1 - (seconds - 1) * 0.1, 0.1)
     }
 
     private func point(center: CGPoint, radius: CGFloat, degrees: CGFloat) -> CGPoint {
