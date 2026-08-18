@@ -584,7 +584,7 @@ private final class QuotaView: NSView {
             progress.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             progress.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
             progress.heightAnchor.constraint(equalToConstant: 6),
-            legends.topAnchor.constraint(equalTo: progress.bottomAnchor, constant: 8),
+            legends.topAnchor.constraint(equalTo: progress.bottomAnchor, constant: 12),
             legends.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             legends.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24)
         ])
@@ -1940,13 +1940,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(refreshIntervalItem)
         menu.addItem(.separator())
 
-        let about = menu.addItem(withTitle: "关于模型状态", action: #selector(showAbout), keyEquivalent: "")
+        let about = menu.addItem(withTitle: "关于", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
 
         let checkUpdate = menu.addItem(withTitle: "检查更新...", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
         checkUpdate.target = self
 
-        let quit = menu.addItem(withTitle: "退出\(AppConfig.appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = menu.addItem(withTitle: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         statusItem.menu = menu
     }
@@ -1955,10 +1955,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "2.2.4"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "12"
+        let sourceURL = URL(string: "https://github.com/\(AppConfig.githubRepository)")!
+        let credits = NSMutableAttributedString(string: "源码：")
+        credits.append(NSAttributedString(
+            string: sourceURL.absoluteString,
+            attributes: [
+                .link: sourceURL,
+                .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue
+            ]
+        ))
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: AppConfig.appName,
             .applicationVersion: version,
-            .version: "构建号 \(build)"
+            .version: "构建号 \(build)",
+            .credits: credits
         ])
     }
 
@@ -2485,7 +2496,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             updateOrbAndInfo()
             return
         }
-        widgetView.showQuotaLoading()
+        if quotaSnapshot == nil {
+            widgetView.showQuotaLoading()
+        }
         quotaTask?.cancel()
 
         var components = URLComponents(url: AppConfig.usageURL, resolvingAgainstBaseURL: false)!
@@ -2510,7 +2523,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.widgetView.updateFooter(date: self.latestCheckedAt(), maskedKey: masked)
                 if let error = error as NSError?, error.code == NSURLErrorCancelled { return }
                 if error != nil {
-                    self.widgetView.showQuotaError("额度查询失败")
+                    if self.quotaSnapshot == nil {
+                        self.widgetView.showQuotaError("额度查询失败")
+                    }
                     return
                 }
                 guard let http = response as? HTTPURLResponse,
@@ -2518,7 +2533,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       let data,
                       let decoded = try? JSONDecoder().decode(UsageResponse.self, from: data) else {
                     let status = (response as? HTTPURLResponse)?.statusCode
-                    self.widgetView.showQuotaError(status == 401 || status == 403 ? "Key 无效或无权限" : "额度响应异常")
+                    if self.quotaSnapshot == nil {
+                        self.widgetView.showQuotaError(status == 401 || status == 403 ? "Key 无效或无权限" : "额度响应异常")
+                    }
                     return
                 }
                 let snapshot = QuotaSnapshot(response: decoded)
