@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             || arguments.contains("--qa-orb-empty")
             || arguments.contains("--qa-orb-interrupted")
             || arguments.contains("--qa-orb-failed")
+            || arguments.contains("--qa-orb-countdown")
     }
     private var isQAPreview: Bool {
         arguments.contains("--qa-preview") || isMinimumQAPreview || isOrbQAPreview
@@ -163,6 +164,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let presentations = Dictionary(uniqueKeysWithValues: zip(ModelDefinition.monitored.map(\.id), samples))
         orbView.update(presentations: presentations, quota: quotaSnapshot)
+        if arguments.contains("--qa-orb-countdown") {
+            orbView.startRefreshCountdown(duration: 3_600, initialProgress: 0.5)
+        }
         orbInfoView.update(presentations: presentations, quota: quotaSnapshot)
         let orbAvailable = samples[0].phase == .online ? 1 : 0
         statusMenuItem.title = currentMode == .orb ? "\(orbAvailable) / 1 可用" : "3 / 4 可用"
@@ -189,6 +193,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             filename = "model-status-orb-interrupted.png"
         } else if arguments.contains("--qa-orb-failed") {
             filename = "model-status-orb-failed.png"
+        } else if arguments.contains("--qa-orb-countdown") {
+            filename = "model-status-orb-countdown.png"
         } else if isOrbQAPreview {
             filename = "model-status-orb.png"
         } else {
@@ -449,6 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func performRefresh(forceProbes: Bool) {
         guard !isPaused else { return }
+        orbView.startRefreshCountdown(duration: selectedRefreshInterval)
         refreshQuota()
         let models = currentMode == .detail && panel.isVisible
             ? ModelDefinition.monitored
@@ -467,6 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             userInfo: nil,
             repeats: true
         )
+        orbView.startRefreshCountdown(duration: selectedRefreshInterval)
     }
 
     private func setRefreshInterval(_ interval: TimeInterval) {
@@ -557,6 +565,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         probeTasks.removeAll()
         probeGenerations.removeAll()
         widgetView.setRefreshing(false)
+        orbView.stopRefreshCountdown()
     }
 
     private func resume(from reason: PauseReason, wakeDelay: TimeInterval) {

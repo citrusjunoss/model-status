@@ -5,7 +5,10 @@ final class OrbWidgetView: NSView {
     private var presentations: [String: ProbePresentation] = [:]
     private var quota: QuotaSnapshot?
     private var wavePhase: CGFloat = 0
-    private var waveTimer: Timer?
+    private var animationTimer: Timer?
+    private var refreshCountdownStartedAt: TimeInterval?
+    private var refreshCountdownDuration: TimeInterval?
+    private var refreshCountdownProgress: CGFloat = 0
     private var displayedLatencyProgress: CGFloat?
     private var targetLatencyProgress: CGFloat?
     private var latencyAnimationTimer: Timer?
@@ -30,13 +33,13 @@ final class OrbWidgetView: NSView {
     required init?(coder: NSCoder) { nil }
 
     deinit {
-        waveTimer?.invalidate()
+        animationTimer?.invalidate()
         latencyAnimationTimer?.invalidate()
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        updateWaveTimer()
+        updateAnimationTimer()
     }
 
     override var acceptsFirstResponder: Bool { true }
@@ -109,7 +112,28 @@ final class OrbWidgetView: NSView {
         let percent = quota.map { Int(($0.remainingFraction * 100).rounded()) }
         let status = orbStatusText(presentations[ModelDefinition.orbModel.id])
         setAccessibilityValue("\(percent.map { "剩余额度 \($0)%" } ?? "剩余额度未知")，Sol \(status)")
-        updateWaveTimer()
+        updateAnimationTimer()
+        needsDisplay = true
+    }
+
+    func startRefreshCountdown(duration: TimeInterval, initialProgress: CGFloat = 0) {
+        guard duration > 0 else {
+            stopRefreshCountdown()
+            return
+        }
+        let progress = min(max(initialProgress, 0), 1)
+        refreshCountdownDuration = duration
+        refreshCountdownStartedAt = ProcessInfo.processInfo.systemUptime - duration * TimeInterval(progress)
+        refreshCountdownProgress = progress
+        updateAnimationTimer()
+        needsDisplay = true
+    }
+
+    func stopRefreshCountdown() {
+        refreshCountdownStartedAt = nil
+        refreshCountdownDuration = nil
+        refreshCountdownProgress = 0
+        updateAnimationTimer()
         needsDisplay = true
     }
 
@@ -159,17 +183,27 @@ final class OrbWidgetView: NSView {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    private func updateWaveTimer() {
-        waveTimer?.invalidate()
-        waveTimer = nil
+    private func updateAnimationTimer() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+        let hasRefreshCountdown = refreshCountdownStartedAt != nil && refreshCountdownDuration != nil
         guard window != nil,
-              quota != nil,
+              quota != nil || hasRefreshCountdown,
               !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
-        waveTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self else { return }
-            wavePhase += 0.085
+            if quota != nil {
+                wavePhase += 0.085
+            }
+            if let startedAt = refreshCountdownStartedAt,
+               let duration = refreshCountdownDuration {
+                let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+                refreshCountdownProgress = CGFloat(min(max(elapsed / duration, 0), 1))
+            }
             needsDisplay = true
         }
+        animationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -294,6 +328,37 @@ final class OrbWidgetView: NSView {
                 drawArc(context, center: center, radius: stabilityRadius, startDegrees: 35, endDegrees: 135, width: 0.45, color: NSColor(calibratedRed: 1, green: 0.91, blue: 0.70, alpha: 0.46))
             }
         }
+        drawRefreshCountdownMarker(context, center: center, radius: stabilityRadius)
+    }
+
+    private func drawRefreshCountdownMarker(_ context: CGContext, center: CGPoint, radius: CGFloat) {
+        guard refreshCountdownDuration != nil else { return }
+        let progress = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            ? 0
+            : refreshCountdownProgress
+        let markerCenterDegrees = 270 - 360 * progress
+        let markerRadius = radius - 1.8
+        let markerSweep: CGFloat = 5
+        drawArc(
+            context,
+            center: center,
+            radius: markerRadius,
+            startDegrees: markerCenterDegrees + markerSweep / 2,
+            endDegrees: markerCenterDegrees - markerSweep / 2,
+            width: 1.7,
+            color: NSColor.black.withAlphaComponent(0.72),
+            clockwise: true
+        )
+        drawArc(
+            context,
+            center: center,
+            radius: markerRadius,
+            startDegrees: markerCenterDegrees + markerSweep / 2,
+            endDegrees: markerCenterDegrees - markerSweep / 2,
+            width: 0.8,
+            color: NSColor(calibratedWhite: 0.92, alpha: 0.68),
+            clockwise: true
+        )
     }
 
     private func drawNeedle(_ context: CGContext, center: CGPoint, radius: CGFloat, degrees: CGFloat) {
